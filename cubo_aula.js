@@ -1,84 +1,93 @@
-var canvas;
-var gl;
-
-var latitudeBands = 30;
-var longitudeBands = 30;
-var radius = 0.5;
-
-var sphereVertices = [];
-var sphereColors = [];
-var sphereIndices = [];
-
-function createSphere() {
-    for (var lat = 0; lat <= latitudeBands; lat++) {
-        var theta = lat * Math.PI / latitudeBands;
-        var sinTheta = Math.sin(theta);
-        var cosTheta = Math.cos(theta);
-
-        for (var lon = 0; lon <= longitudeBands; lon++) {
-            var phi = lon * 2 * Math.PI / longitudeBands;
-            var sinPhi = Math.sin(phi);
-            var cosPhi = Math.cos(phi);
-
-            var x = cosPhi * sinTheta;
-            var y = cosTheta;
-            var z = sinPhi * sinTheta;
-            
-            sphereVertices.push(vec3(radius * x, radius * y, radius * z));
-            sphereColors.push(vec3(0.5, 0.5, 0.5));
-        }
-    }
-
-    for (var lat = 0; lat < latitudeBands; lat++) {
-        for (var lon = 0; lon < longitudeBands; lon++) {
-            var first = (lat * (longitudeBands + 1)) + lon;
-            var second = first + longitudeBands + 1;
-
-            sphereIndices.push(first, second, first + 1);
-            sphereIndices.push(second, second + 1, first + 1);
-        }
-    }
-}
+let canvas;
+let gl;
+let program;
+let objData = null;
 
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
-    if (!gl) { alert("WebGL isn't available"); }
+    if (!gl) { 
+        alert("WebGL isn't available"); 
+        return; 
+    }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.1, 0.2, 0.2, 1.0);
     gl.enable(gl.DEPTH_TEST);
 
-    var program = initShaders(gl, "vertex-shader", "fragment-shader");
+    program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
-    createSphere();
+    document.getElementById("file-input").addEventListener("change", handleFileSelect);
     
-    var vBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(sphereVertices), gl.STATIC_DRAW);
-
-    var vPosition = gl.getAttribLocation(program, "vPosition");
-    gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vPosition);
-
-    var cBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, cBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, flatten(sphereColors), gl.STATIC_DRAW);
-
-    var vColor = gl.getAttribLocation(program, "vColor");
-    gl.vertexAttribPointer(vColor, 3, gl.FLOAT, false, 0, 0);
-    gl.enableVertexAttribArray(vColor);
-
-    var iBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, iBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(sphereIndices), gl.STATIC_DRAW);
-
     render();
 };
 
+function handleFileSelect(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                objData = parseOBJ(e.target.result);
+                setupOBJBuffers(objData);
+            } catch (error) {
+                console.error("Error parsing OBJ file:", error);
+            }
+        };
+        reader.readAsText(file);
+    }
+}
+
+function parseOBJ(text) {
+    const vertices = [];
+    const normals = [];
+    const indices = [];
+
+    const lines = text.split('\n');
+    
+    for (const line of lines) {
+        const trimmedLine = line.trim();
+        const parts = trimmedLine.split(/\s+/);
+
+        if (parts[0] === 'v') {
+            vertices.push(...parts.slice(1).map(Number));
+        } else if (parts[0] === 'vn') {
+            normals.push(...parts.slice(1).map(Number));
+        } else if (parts[0] === 'f') {
+            for (let j = 1; j < parts.length; j++) {
+                const vertexIndices = parts[j].split('/');
+                indices.push(parseInt(vertexIndices[0]) - 1);
+            }
+        }
+    }
+
+    return { vertices, normals, indices };
+}
+
+function setupOBJBuffers(objData) {
+    const positionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(objData.vertices), gl.STATIC_DRAW);
+
+    const vPosition = gl.getAttribLocation(program, "vPosition");
+    gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vPosition);
+
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(objData.indices), gl.STATIC_DRAW);
+
+    objData.indexBuffer = indexBuffer;
+}
+
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.drawElements(gl.TRIANGLES, sphereIndices.length, gl.UNSIGNED_SHORT, 0);
-    requestAnimFrame(render);
+    
+    if (objData) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objData.indexBuffer);
+        gl.drawElements(gl.TRIANGLES, objData.indices.length, gl.UNSIGNED_SHORT, 0);
+    }
+    
+    requestAnimationFrame(render);
 }
