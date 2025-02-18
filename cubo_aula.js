@@ -3,6 +3,7 @@ let gl;
 let program;
 const objDataArray = []; // Array to hold multiple OBJ data
 const translations = []; // Array to hold translations for each object
+const scales = []; // Array to hold scales for each object
 let loadedCount = 0;
 
 window.onload = function init() {
@@ -31,6 +32,7 @@ function handleFileSelect(event) {
     loadedCount = 0;
     objDataArray.length = 0;
     translations.length = 0;
+    scales.length = 0;
 
     // Parse translations
     const translationsInput = document.getElementById("translations").value;
@@ -38,6 +40,7 @@ function handleFileSelect(event) {
     translationStrings.forEach(translationString => {
         const translation = translationString.split(',').map(Number);
         translations.push(translation);
+        scales.push(1); // Initialize scales to 1
     });
 
     for (let i = 0; i < files.length; i++) {
@@ -113,15 +116,27 @@ function changeTranslation() {
     }
 }
 
+function changeScale() {
+    const runtimeScaleInput = document.getElementById("runtime-scale").value;
+    const [index, scale] = runtimeScaleInput.split(',').map(Number);
+    if (index >= 0 && index < scales.length) {
+        scales[index] = scale;
+    }
+}
+
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     for (let i = 0; i < objDataArray.length; i++) {
         const objData = objDataArray[i];
         const translation = translations[i] || [0, 0, 0];
+        const scale = scales[i] || 1;
 
         const translationLoc = gl.getUniformLocation(program, "translation");
         gl.uniform3fv(translationLoc, translation);
+
+        const scaleLoc = gl.getUniformLocation(program, "scale");
+        gl.uniform1f(scaleLoc, scale);
 
         if (objData) {
             gl.bindBuffer(gl.ARRAY_BUFFER, objData.positionBuffer);

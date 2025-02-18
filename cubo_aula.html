@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>OBJ Loader with Runtime Translations</title>
+    <title>OBJ Loader with Runtime Scale and Translation</title>
     <script type="text/javascript" src="./Common/webgl-utils.js"></script>
     <script type="text/javascript" src="./Common/initShaders.js"></script>
     <script type="text/javascript" src="./Common/MV.js"></script>
@@ -15,17 +15,21 @@
     <input type="file" id="file-input" accept=".obj" multiple><br>
     <label for="translations">Initial Translations (e.g., 0,0,0|1,1,1): </label>
     <input type="text" id="translations" value="0,0,0"><br>
-    <label for="runtime-translation">Change Translation for Object (index,x,y,z): </label>
+    <label for="runtime-translation">Change Translation (index,x,y,z): </label>
     <input type="text" id="runtime-translation" value="0,0,0,0">
-    <button onclick="changeTranslation()">Change Translation</button>
+    <button onclick="changeTranslation()">Change Translation</button><br>
+    <label for="runtime-scale">Change Scale (index,scale): </label>
+    <input type="text" id="runtime-scale" value="0,1">
+    <button onclick="changeScale()">Change Scale</button>
 
     <script id="vertex-shader" type="x-shader/x-vertex">
         attribute vec4 vPosition;
         varying vec4 fColor;
         uniform vec3 translation;
+        uniform float scale;
         void main() {
             fColor = vec4(0.3, 0.3, 0.3, 1.0); // Dark grey color
-            gl_Position = vPosition + vec4(translation, 0.0);
+            gl_Position = vec4(vPosition.xyz * scale + translation, 1.0);
         }
     </script>
 
