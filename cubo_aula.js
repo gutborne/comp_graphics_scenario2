@@ -17,8 +17,14 @@ window.onload = function init() {
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0.1, 0.2, 0.2, 1.0);
     gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
 
     program = initShaders(gl, "vertex-shader", "fragment-shader");
+    if (!program) {
+        console.error("Shader program initialization failed.");
+        return;
+    }
     gl.useProgram(program);
 
     const fileInput = document.getElementById("file-input");
@@ -68,6 +74,7 @@ function parseOBJ(text) {
     const vertices = [];
     const normals = [];
     const indices = [];
+    const normalsPerVertex = [];
 
     const lines = text.split('\n');
 
@@ -80,14 +87,25 @@ function parseOBJ(text) {
         } else if (parts[0] === 'vn') {
             normals.push(...parts.slice(1).map(Number));
         } else if (parts[0] === 'f') {
+            const faceIndices = [];
+
             for (let j = 1; j < parts.length; j++) {
                 const vertexIndices = parts[j].split('/');
-                indices.push(parseInt(vertexIndices[0]) - 1);
+                const vertexIndex = parseInt(vertexIndices[0]) - 1;
+                const normalIndex = parseInt(vertexIndices[2]) - 1;
+
+                faceIndices.push(vertexIndex);
+                normalsPerVertex[vertexIndex] = normals.slice(normalIndex * 3, normalIndex * 3 + 3);
+            }
+
+            // Triangulate faces with more than 3 vertices
+            for (let j = 1; j < faceIndices.length - 1; j++) {
+                indices.push(faceIndices[0], faceIndices[j], faceIndices[j + 1]);
             }
         }
     }
 
-    return { vertices, normals, indices };
+    return { vertices, normals: normalsPerVertex, indices };
 }
 
 function setupOBJBuffers(objData) {
@@ -99,13 +117,23 @@ function setupOBJBuffers(objData) {
     gl.vertexAttribPointer(vPosition, 3, gl.FLOAT, false, 0, 0);
     gl.enableVertexAttribArray(vPosition);
 
+    const normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(objData.normals.flat()), gl.STATIC_DRAW);
+
+    const vNormal = gl.getAttribLocation(program, "vNormal");
+    gl.vertexAttribPointer(vNormal, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(vNormal);
+
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(objData.indices), gl.STATIC_DRAW);
 
     objData.positionBuffer = positionBuffer;
+    objData.normalBuffer = normalBuffer;
     objData.indexBuffer = indexBuffer;
     objData.vPosition = vPosition;
+    objData.vNormal = vNormal;
 }
 
 function changeTranslation() {
@@ -143,10 +171,14 @@ function render() {
             gl.vertexAttribPointer(objData.vPosition, 3, gl.FLOAT, false, 0, 0);
             gl.enableVertexAttribArray(objData.vPosition);
 
+            gl.bindBuffer(gl.ARRAY_BUFFER, objData.normalBuffer);
+            gl.vertexAttribPointer(objData.vNormal, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(objData.vNormal);
+
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objData.indexBuffer);
             gl.drawElements(gl.TRIANGLES, objData.indices.length, gl.UNSIGNED_SHORT, 0);
         }
     }
 
-    requestAnimationFrame(render);
+    requestAnimationFrame(render); // Continuously render the scene
 }
