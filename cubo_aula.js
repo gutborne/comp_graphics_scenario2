@@ -6,6 +6,82 @@ const translations = []; // Array to hold translations for each object
 const scales = []; // Array to hold scales for each object
 let loadedCount = 0;
 
+// Camera parameters
+let cameraTranslate = 5; // Distance from the origin - renamed to avoid conflict
+let rotationX = 0; // Rotation around x-axis
+let rotationY = 0; // Rotation around y-axis
+let fov = 45; // Field of view
+let aspect = 1; // Aspect ratio
+
+// Math utility functions
+function _argumentsToArray(args) {
+    return [].concat.apply([], Array.prototype.slice.apply(args));
+}
+
+function vec4() {
+    var result = _argumentsToArray(arguments);
+    switch (result.length) {
+        case 0:
+            result.push(0.0);
+        case 1:
+            result.push(0.0);
+        case 2:
+            result.push(0.0);
+        case 3:
+            result.push(1.0);
+    }
+    return result.splice(0, 4);
+}
+
+function mat4() {
+    var v = _argumentsToArray(arguments);
+    var m = [];
+
+    switch (v.length) {
+        case 0:
+            v[0] = 1;
+        case 1:
+            m = [
+                vec4(v[0], 0.0, 0.0, 0.0),
+                vec4(0.0, v[0], 0.0, 0.0),
+                vec4(0.0, 0.0, v[0], 0.0),
+                vec4(0.0, 0.0, 0.0, v[0])
+            ];
+            break;
+        default:
+            m.push(vec4(v));
+            v.splice(0, 4);
+            m.push(vec4(v));
+            v.splice(0, 4);
+            m.push(vec4(v));
+            v.splice(0, 4);
+            m.push(vec4(v));
+            break;
+    }
+
+    m.matrix = true;
+    return m;
+}
+
+function radians(degrees) {
+    return degrees * Math.PI / 180.0;
+}
+
+function perspective(fovy, aspect, near, far) {
+    var f = 1.0 / Math.tan(radians(fovy) / 2);
+    var d = far - near;
+    var result = mat4();
+
+    result[0][0] = f / aspect;
+    result[1][1] = f;
+    result[2][2] = -(near + far) / d;
+    result[2][3] = -2 * near * far / d;
+    result[3][2] = -1;
+    result[3][3] = 0.0;
+
+    return result;
+}
+
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
@@ -30,8 +106,25 @@ window.onload = function init() {
     const fileInput = document.getElementById("file-input");
     fileInput.addEventListener("change", handleFileSelect);
 
+    // Add event listeners for sliders
+    document.getElementById("translate-slider").addEventListener("input", updateCamera);
+    document.getElementById("rotate-y-slider").addEventListener("input", updateCamera);
+    document.getElementById("rotate-x-slider").addEventListener("input", updateCamera);
+    document.getElementById("fov-slider").addEventListener("input", updateCamera);
+    document.getElementById("aspect-slider").addEventListener("input", updateCamera);
+
+    updateCamera(); // Initialize camera parameters
+
     render();
 };
+
+function updateCamera() {
+    cameraTranslate = parseFloat(document.getElementById("translate-slider").value); // Use cameraTranslate
+    rotationY = radians(parseFloat(document.getElementById("rotate-y-slider").value));
+    rotationX = radians(parseFloat(document.getElementById("rotate-x-slider").value));
+    fov = parseFloat(document.getElementById("fov-slider").value);
+    aspect = parseFloat(document.getElementById("aspect-slider").value);
+}
 
 function handleFileSelect(event) {
     const files = event.target.files;
@@ -154,6 +247,24 @@ function changeScale() {
 
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Calculate camera position based on spherical coordinates
+    const eyeX = cameraTranslate * Math.sin(rotationY) * Math.cos(rotationX); // Use cameraTranslate
+    const eyeY = cameraTranslate * Math.sin(rotationX); // Use cameraTranslate
+    const eyeZ = cameraTranslate * Math.cos(rotationY) * Math.cos(rotationX); // Use cameraTranslate
+
+    const eye = vec3(eyeX, eyeY, eyeZ);
+    const at = vec3(0.0, 0.0, 0.0);
+    const up = vec3(0.0, 1.0, 0.0);
+
+    // Create view matrix using lookAt function from MV.js
+    const modelViewMatrix = lookAt(eye, at, up);
+    const projectionMatrix = perspective(fov, aspect, 0.1, 100);
+
+    const modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
+    gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
+
+    const projectionMatrixLoc = gl.getUniformLocation(program, "projectionMatrix");
+    gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix));
 
     for (let i = 0; i < objDataArray.length; i++) {
         const objData = objDataArray[i];
@@ -180,5 +291,5 @@ function render() {
         }
     }
 
-    requestAnimationFrame(render); // Continuously render the scene
+    requestAnimationFrame(render);
 }
