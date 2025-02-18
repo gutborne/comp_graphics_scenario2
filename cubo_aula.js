@@ -1,14 +1,15 @@
 let canvas;
 let gl;
 let program;
-let objData = null;
+const objDataArray = []; // Array to hold multiple OBJ data
+let loadedCount = 0;
 
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
     gl = WebGLUtils.setupWebGL(canvas);
-    if (!gl) { 
-        alert("WebGL isn't available"); 
-        return; 
+    if (!gl) {
+        alert("WebGL isn't available");
+        return;
     }
 
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -18,21 +19,31 @@ window.onload = function init() {
     program = initShaders(gl, "vertex-shader", "fragment-shader");
     gl.useProgram(program);
 
-    document.getElementById("file-input").addEventListener("change", handleFileSelect);
-    
+    const fileInput = document.getElementById("file-input");
+    fileInput.addEventListener("change", handleFileSelect);
+
     render();
 };
 
 function handleFileSelect(event) {
-    const file = event.target.files[0];
-    if (file) {
+    const files = event.target.files;
+    loadedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                objData = parseOBJ(e.target.result);
+                const objData = parseOBJ(e.target.result);
                 setupOBJBuffers(objData);
+                objDataArray.push(objData); // Store parsed OBJ data
             } catch (error) {
                 console.error("Error parsing OBJ file:", error);
+            } finally {
+                loadedCount++;
+                if (loadedCount === files.length) {
+                    console.log("All files loaded and buffers setup.");
+                }
             }
         };
         reader.readAsText(file);
@@ -45,7 +56,7 @@ function parseOBJ(text) {
     const indices = [];
 
     const lines = text.split('\n');
-    
+
     for (const line of lines) {
         const trimmedLine = line.trim();
         const parts = trimmedLine.split(/\s+/);
@@ -78,16 +89,24 @@ function setupOBJBuffers(objData) {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(objData.indices), gl.STATIC_DRAW);
 
+    objData.positionBuffer = positionBuffer;
     objData.indexBuffer = indexBuffer;
+    objData.vPosition = vPosition;
 }
 
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    
-    if (objData) {
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objData.indexBuffer);
-        gl.drawElements(gl.TRIANGLES, objData.indices.length, gl.UNSIGNED_SHORT, 0);
+
+    for (const objData of objDataArray) {
+        if (objData) {
+            gl.bindBuffer(gl.ARRAY_BUFFER, objData.positionBuffer);
+            gl.vertexAttribPointer(objData.vPosition, 3, gl.FLOAT, false, 0, 0);
+            gl.enableVertexAttribArray(objData.vPosition);
+
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, objData.indexBuffer);
+            gl.drawElements(gl.TRIANGLES, objData.indices.length, gl.UNSIGNED_SHORT, 0);
+        }
     }
-    
+
     requestAnimationFrame(render);
 }
