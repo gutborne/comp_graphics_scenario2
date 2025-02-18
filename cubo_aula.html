@@ -1,22 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script id="vertex-shader" type="x-shader/x-vertex">
-        attribute vec4 vPosition;
-        varying vec4 fColor;
-        void main() {
-            fColor = vec4(0.3, 0.3, 0.3, 1.0); // Dark grey color
-            gl_Position = vPosition;
-        }
-    </script>
-
-    <script id="fragment-shader" type="x-shader/x-fragment">
-        precision mediump float;
-        varying vec4 fColor;
-        void main() {
-            gl_FragColor = fColor; // Use the color from the vertex shader
-        }
-    </script>
+    <title>OBJ Loader with Individual Translations</title>
     <script type="text/javascript" src="./Common/webgl-utils.js"></script>
     <script type="text/javascript" src="./Common/initShaders.js"></script>
     <script type="text/javascript" src="./Common/MV.js"></script>
@@ -27,6 +12,26 @@
     <canvas id="gl-canvas" width="700" height="700">
         Oops ... your browser doesn't support the HTML5 canvas element
     </canvas>
-    <input type="file" id="file-input" accept=".obj" multiple>
+    <input type="file" id="file-input" accept=".obj" multiple><br>
+    <label for="translations">Translations (e.g., 0,0,0|1,1,1): </label>
+    <input type="text" id="translations" value="0,0,0">
+
+    <script id="vertex-shader" type="x-shader/x-vertex">
+        attribute vec4 vPosition;
+        varying vec4 fColor;
+        uniform vec3 translation;
+        void main() {
+            fColor = vec4(0.3, 0.3, 0.3, 1.0); // Dark grey color
+            gl_Position = vPosition + vec4(translation, 0.0);
+        }
+    </script>
+
+    <script id="fragment-shader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying vec4 fColor;
+        void main() {
+            gl_FragColor = fColor; // Use the color from the vertex shader
+        }
+    </script>
 </body>
 </html>

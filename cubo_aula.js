@@ -2,6 +2,7 @@ let canvas;
 let gl;
 let program;
 const objDataArray = []; // Array to hold multiple OBJ data
+const translations = []; // Array to hold translations for each object
 let loadedCount = 0;
 
 window.onload = function init() {
@@ -28,6 +29,16 @@ window.onload = function init() {
 function handleFileSelect(event) {
     const files = event.target.files;
     loadedCount = 0;
+    objDataArray.length = 0;
+    translations.length = 0;
+
+    // Parse translations
+    const translationsInput = document.getElementById("translations").value;
+    const translationStrings = translationsInput.split('|');
+    translationStrings.forEach(translationString => {
+        const translation = translationString.split(',').map(Number);
+        translations.push(translation);
+    });
 
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -97,7 +108,13 @@ function setupOBJBuffers(objData) {
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    for (const objData of objDataArray) {
+    for (let i = 0; i < objDataArray.length; i++) {
+        const objData = objDataArray[i];
+        const translation = translations[i] || [0, 0, 0];
+
+        const translationLoc = gl.getUniformLocation(program, "translation");
+        gl.uniform3fv(translationLoc, translation);
+
         if (objData) {
             gl.bindBuffer(gl.ARRAY_BUFFER, objData.positionBuffer);
             gl.vertexAttribPointer(objData.vPosition, 3, gl.FLOAT, false, 0, 0);
