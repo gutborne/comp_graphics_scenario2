@@ -105,6 +105,14 @@ function setupOBJBuffers(objData) {
     objData.vPosition = vPosition;
 }
 
+function changeTranslation() {
+    const runtimeTranslationInput = document.getElementById("runtime-translation").value;
+    const [index, x, y, z] = runtimeTranslationInput.split(',').map(Number);
+    if (index >= 0 && index < translations.length) {
+        translations[index] = [x, y, z];
+    }
+}
+
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
