@@ -13,74 +13,12 @@ let rotationY = 0; // Rotation around y-axis
 let fov = 45; // Field of view
 let aspect = 1; // Aspect ratio
 
-// Math utility functions
-function _argumentsToArray(args) {
-    return [].concat.apply([], Array.prototype.slice.apply(args));
-}
-
-function vec4() {
-    var result = _argumentsToArray(arguments);
-    switch (result.length) {
-        case 0:
-            result.push(0.0);
-        case 1:
-            result.push(0.0);
-        case 2:
-            result.push(0.0);
-        case 3:
-            result.push(1.0);
-    }
-    return result.splice(0, 4);
-}
-
-function mat4() {
-    var v = _argumentsToArray(arguments);
-    var m = [];
-
-    switch (v.length) {
-        case 0:
-            v[0] = 1;
-        case 1:
-            m = [
-                vec4(v[0], 0.0, 0.0, 0.0),
-                vec4(0.0, v[0], 0.0, 0.0),
-                vec4(0.0, 0.0, v[0], 0.0),
-                vec4(0.0, 0.0, 0.0, v[0])
-            ];
-            break;
-        default:
-            m.push(vec4(v));
-            v.splice(0, 4);
-            m.push(vec4(v));
-            v.splice(0, 4);
-            m.push(vec4(v));
-            v.splice(0, 4);
-            m.push(vec4(v));
-            break;
-    }
-
-    m.matrix = true;
-    return m;
-}
-
-function radians(degrees) {
-    return degrees * Math.PI / 180.0;
-}
-
-function perspective(fovy, aspect, near, far) {
-    var f = 1.0 / Math.tan(radians(fovy) / 2);
-    var d = far - near;
-    var result = mat4();
-
-    result[0][0] = f / aspect;
-    result[1][1] = f;
-    result[2][2] = -(near + far) / d;
-    result[2][3] = -2 * near * far / d;
-    result[3][2] = -1;
-    result[3][3] = 0.0;
-
-    return result;
-}
+let lightPositionLoc;
+let cameraPositionLoc;
+let translationLoc;
+let scaleLoc;
+let projectionMatrixLoc;
+let modelViewMatrixLoc;
 
 window.onload = function init() {
     canvas = document.getElementById("gl-canvas");
@@ -103,18 +41,26 @@ window.onload = function init() {
     }
     gl.useProgram(program);
 
+    lightPositionLoc = gl.getUniformLocation(program, "lightPosition");
+    cameraPositionLoc = gl.getUniformLocation(program, "cameraPosition");
+    translationLoc = gl.getUniformLocation(program, "translation");
+    scaleLoc = gl.getUniformLocation(program, "scale");
+    projectionMatrixLoc = gl.getUniformLocation(program, "projectionMatrix");
+    modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
+
+    gl.uniform3fv(lightPositionLoc, [5.0, 5.0, 5.0]); // Posição da luz
+    gl.uniform3fv(cameraPositionLoc, [0.0, 0.0, 5.0]); // Posição inicial da câmera
+
     const fileInput = document.getElementById("file-input");
     fileInput.addEventListener("change", handleFileSelect);
 
-    // Add event listeners for sliders
     document.getElementById("translate-slider").addEventListener("input", updateCamera);
     document.getElementById("rotate-y-slider").addEventListener("input", updateCamera);
     document.getElementById("rotate-x-slider").addEventListener("input", updateCamera);
     document.getElementById("fov-slider").addEventListener("input", updateCamera);
     document.getElementById("aspect-slider").addEventListener("input", updateCamera);
 
-    updateCamera(); // Initialize camera parameters
-
+    updateCamera();
     render();
 };
 
@@ -128,12 +74,12 @@ function updateCamera() {
 
 function handleFileSelect(event) {
     const files = event.target.files;
+    console.log(files);
     loadedCount = 0;
     objDataArray.length = 0;
     translations.length = 0;
     scales.length = 0;
 
-    // Parse translations
     const translationsInput = document.getElementById("translations").value;
     const translationStrings = translationsInput.split('|');
     translationStrings.forEach(translationString => {
@@ -170,7 +116,6 @@ function parseOBJ(text) {
     const normalsPerVertex = [];
 
     const lines = text.split('\n');
-
     for (const line of lines) {
         const trimmedLine = line.trim();
         const parts = trimmedLine.split(/\s+/);
@@ -247,34 +192,28 @@ function changeScale() {
 
 function render() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    // Calculate camera position based on spherical coordinates
-    const eyeX = cameraTranslate * Math.sin(rotationY) * Math.cos(rotationX); // Use cameraTranslate
-    const eyeY = cameraTranslate * Math.sin(rotationX); // Use cameraTranslate
-    const eyeZ = cameraTranslate * Math.cos(rotationY) * Math.cos(rotationX); // Use cameraTranslate
+
+    const eyeX = cameraTranslate * Math.sin(rotationY) * Math.cos(rotationX); 
+    const eyeY = cameraTranslate * Math.sin(rotationX); 
+    const eyeZ = cameraTranslate * Math.cos(rotationY) * Math.cos(rotationX); 
 
     const eye = vec3(eyeX, eyeY, eyeZ);
     const at = vec3(0.0, 0.0, 0.0);
     const up = vec3(0.0, 1.0, 0.0);
 
-    // Create view matrix using lookAt function from MV.js
     const modelViewMatrix = lookAt(eye, at, up);
     const projectionMatrix = perspective(fov, aspect, 0.1, 100);
 
-    const modelViewMatrixLoc = gl.getUniformLocation(program, "modelViewMatrix");
     gl.uniformMatrix4fv(modelViewMatrixLoc, false, flatten(modelViewMatrix));
-
-    const projectionMatrixLoc = gl.getUniformLocation(program, "projectionMatrix");
     gl.uniformMatrix4fv(projectionMatrixLoc, false, flatten(projectionMatrix));
+    gl.uniform3fv(cameraPositionLoc, eye);
 
     for (let i = 0; i < objDataArray.length; i++) {
         const objData = objDataArray[i];
         const translation = translations[i] || [0, 0, 0];
         const scale = scales[i] || 1;
 
-        const translationLoc = gl.getUniformLocation(program, "translation");
         gl.uniform3fv(translationLoc, translation);
-
-        const scaleLoc = gl.getUniformLocation(program, "scale");
         gl.uniform1f(scaleLoc, scale);
 
         if (objData) {
